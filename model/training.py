@@ -292,3 +292,10 @@ if __name__ == "__main__":
         destination = os.path.join(MODEL_DIR, os.path.basename(export_path))
         shutil.copy2(export_path, destination)
         print(f"Model exported and copied to {destination}")
+
+        # Create labels.txt file in the MODEL_DIR
+        labels_file_path = os.path.join(MODEL_DIR, "labels.txt")
+        with open(labels_file_path, "w") as f:
+            for label in LABELS:
+                f.write(f"{label}\n")
+        print(f"Labels file created at {labels_file_path}")
