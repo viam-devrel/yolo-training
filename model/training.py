@@ -19,7 +19,7 @@ def parse_args(args):
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset_file", dest="data_json", type=str)
     parser.add_argument("--model_output_directory", dest="model_dir", type=str)
-    parser.add_argument("--num_epochs", dest="num_epochs", type=int)
+    parser.add_argument("--num_epochs", dest="num_epochs", type=int, default=200)
     parser.add_argument(
         "--labels",
         dest="labels",
@@ -174,7 +174,7 @@ def process_dataset(dataset, subset_type, dirs, class_to_idx):
 
 def parse_filenames_and_bboxes_from_json(
     filename: str,
-    all_labels: List[str],
+    all_labels: List[str] | None,
 ) -> Tuple[List[str], List[List[str]], List[List[List[float]]]]:
     """Load and parse JSON file to return image filenames and corresponding labels with bboxes.
         The JSON file contains lines, where each line has the key "image_path" and "bounding_box_annotations".
@@ -193,8 +193,12 @@ def parse_filenames_and_bboxes_from_json(
             annotations = json_line["bounding_box_annotations"]
             labels: List[str] = []
             coords: List[List[float]] = []
+            use_label = all_labels is None
             for annotation in annotations:
-                if annotation["annotation_label"] in all_labels:
+                if all_labels:
+                    use_label = annotation["annotation_label"] in all_labels
+
+                if use_label:
                     labels.append(annotation["annotation_label"])
                     # Convert from [y_min, x_min, y_max, x_max] to [x_center, y_center, width, height]
                     x_min = annotation["x_min_normalized"]
@@ -223,7 +227,7 @@ if __name__ == "__main__":
     platform_str = platform.platform().lower()
 
     DATA_JSON, MODEL_DIR, num_epochs, labels, BASE_MODEL = parse_args(sys.argv[1:])
-    patience = num_epochs / 2
+    patience = int(num_epochs / 2)
 
     if "macos" in platform_str and "arm64" in platform_str:
         device = "mps"
@@ -232,7 +236,7 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         device = str(torch.cuda.current_device())
 
-    LABELS = [label for label in labels.strip("'").split()]
+    LABELS = [label for label in labels.strip("'").split()] if labels else None
 
     (
         image_filenames,
@@ -242,6 +246,13 @@ if __name__ == "__main__":
         filename=DATA_JSON,
         all_labels=LABELS,
     )
+
+    if LABELS is None:
+        # Create a list of unique labels from bbox_labels
+        unique_labels = set()
+        for label_list in bbox_labels:
+            unique_labels.update(label_list)
+        LABELS = sorted(list(unique_labels))
 
     dataset = zip(image_filenames, bbox_labels, bbox_coords)
 

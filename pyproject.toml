@@ -1,14 +1,18 @@
 [project]
 name = "yolo-training"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.1.4"
+description = "A custom training script for training YOLO models on Viam datasets"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "onnx>=1.17.0",
     "onnxruntime>=1.21.0",
+    "onnxruntime-gpu ; sys_platform == 'linux'",
     "onnxslim>=0.1.49",
     "pyyaml>=6.0.2",
     "scikit-learn>=1.6.1",
     "ultralytics>=8.3.104",
 ]
+
+[tool.setuptools]
+packages=["model"]

@@ -12,3 +12,4 @@ wheels/
 runs/
 *.pt
 data/
+dataset.yaml
