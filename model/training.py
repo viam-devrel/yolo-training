@@ -3,8 +3,18 @@ import json
 import platform
 import os
 import shutil
+import subprocess
 import sys
 from typing import List, Optional, Tuple
+
+# ultralytics depends on the GUI build of opencv-python, whose wheels need X11/GL shared
+# libraries that the Viam training image does not have, so `import cv2` fails. Overwrite the
+# cv2 package with the headless wheel (same API, no GUI deps) before ultralytics imports it.
+# --no-deps and --force-reinstall keep the opencv-python dist metadata that ultralytics requires.
+subprocess.check_call(
+    [sys.executable, "-m", "pip", "install", "--quiet", "--no-deps", "--force-reinstall",
+     "opencv-python-headless>=4.7,<4.13"]
+)
 
 from sklearn.model_selection import train_test_split
 import torch
