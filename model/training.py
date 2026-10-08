@@ -141,6 +141,23 @@ def setup_dataset_directories(output_dir):
     }
 
 
+def image_extension(path):
+    """Sniff the image format from the file header and return its extension.
+
+    Viam data-capture files are stored under bare IDs with no extension, and
+    ultralytics only loads files whose extension is a known image type.
+    """
+    with open(path, "rb") as f:
+        head = f.read(12)
+    if head.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if head.startswith(b"\x89PNG"):
+        return ".png"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return ".webp"
+    return ""
+
+
 def process_dataset(dataset, subset_type, dirs, class_to_idx):
     """
     Process dataset by copying images and creating label files.
@@ -155,8 +172,10 @@ def process_dataset(dataset, subset_type, dirs, class_to_idx):
     labels_dir = dirs[f"{subset_type}_labels"]
 
     for img_path, class_names, bboxes in dataset:
-        # Get source image filename
+        # Get source image filename, adding an extension if the source has none
         img_filename = os.path.basename(img_path)
+        if os.path.exists(img_path) and not os.path.splitext(img_filename)[1]:
+            img_filename += image_extension(img_path)
 
         # Destination paths
         dest_img_path = os.path.join(images_dir, img_filename)
