@@ -21,6 +21,8 @@ import torch
 from ultralytics import YOLO
 import yaml
 
+from model.viam_export import check_raw_detection_output, export_viam_onnx
+
 
 def parse_args(args):
     """Returns dataset file, model output directory, and num_epochs if present. These must be parsed as command line
@@ -41,13 +43,28 @@ def parse_args(args):
     parser.add_argument(
         "--base_model", dest="base_model", type=str, default="yolov8n.pt"
     )
+    parser.add_argument("--imgsz", dest="imgsz", type=int, default=640)
+    parser.add_argument(
+        "--export_format",
+        dest="export_format",
+        choices=["viam", "ultralytics"],
+        default="viam",
+        help="viam: an ONNX model that Viam model evaluation and viam:onnx-cpu can run. "
+        "ultralytics: the plain Ultralytics export, for hipsterbrown:mlmodel:yolo-onnx.",
+    )
     parsed_args = parser.parse_args(args)
+    # Ultralytics rounds imgsz up to a multiple of 32 for training but not for export,
+    # so catch it here instead of after the GPU run
+    if parsed_args.imgsz % 32:
+        parser.error("imgsz must be a multiple of 32")
     return (
         parsed_args.data_json,
         parsed_args.model_dir,
         parsed_args.num_epochs,
         parsed_args.labels,
         parsed_args.base_model,
+        parsed_args.imgsz,
+        parsed_args.export_format,
     )
 
 
@@ -255,7 +272,15 @@ if __name__ == "__main__":
     device: Optional[str] = "cpu"
     platform_str = platform.platform().lower()
 
-    DATA_JSON, MODEL_DIR, num_epochs, labels, BASE_MODEL = parse_args(sys.argv[1:])
+    (
+        DATA_JSON,
+        MODEL_DIR,
+        num_epochs,
+        labels,
+        BASE_MODEL,
+        imgsz,
+        export_format,
+    ) = parse_args(sys.argv[1:])
     patience = int(num_epochs / 2)
 
     if "macos" in platform_str and "arm64" in platform_str:
@@ -304,16 +329,26 @@ if __name__ == "__main__":
     process_dataset(val_data, "val", dirs, class_to_idx)
 
     model = YOLO(BASE_MODEL)
+    # Catch base models the viam export can't wrap before spending the GPU run on them
+    if export_format == "viam":
+        check_raw_detection_output(model.model.eval(), imgsz)
     results = model.train(
         task="detect",
         data=output_path,
         epochs=num_epochs,
-        imgsz=640,
+        imgsz=imgsz,
         device=device,
         patience=patience,
     )
 
-    export_path = model.export(format="onnx", device=device)
+    if export_format == "viam":
+        export_path = export_viam_onnx(
+            model.trainer.best,
+            os.path.splitext(str(model.trainer.best))[0] + ".onnx",
+            imgsz=imgsz,
+        )
+    else:
+        export_path = model.export(format="onnx", device=device)
 
     # # Move the exported model to the specified output directory
     if os.path.exists(export_path):

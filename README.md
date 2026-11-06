@@ -28,6 +28,29 @@ viam train submit custom from-registry \
 ```
 Be sure to note that labels is surrounded with single quotes then enclosed with double quotes to ensure it is submitted properly. If you are running the script from a previous version or from the website, you will not be able to use custom arguments.
 
+The script accepts these arguments:
+
+| Argument | Default | Description |
+| -------- | ------- | ----------- |
+| `num_epochs` | `200` | Number of training epochs. |
+| `labels` | All labels in the dataset | Space-separated labels to train on, in single quotes. |
+| `base_model` | `yolov8n.pt` | Ultralytics weights to fine-tune. With `export_format=viam`, a YOLOv8 or YOLO11 detection model. |
+| `imgsz` | `640` | Training and model input size, in pixels. Must be a multiple of 32. |
+| `export_format` | `viam` | `viam` or `ultralytics`. See below. |
+
+### Export formats
+
+With `export_format=viam` (the default), the ONNX model works with Viam's model evaluation and auto-predictions, and on a machine with the `viam:mlmodel:onnx-cpu` ML model service and the `mlmodel` vision service, with no tensor remapping:
+
+- Input: `uint8` RGB image, `[1, 3, imgsz, imgsz]`, raw 0-255 pixel values.
+- Outputs: `location` `[1, 100, 4]` (normalized ymin, xmin, ymax, xmax), `category` `[1, 100]` and `score` `[1, 100]`, after non-maximum suppression.
+
+The model always returns its 100 best detections, most confident first, so set a confidence threshold, such as `default_minimum_confidence` on the vision service.
+
+With `export_format=ultralytics`, the script writes the plain Ultralytics ONNX export, for use with the [`hipsterbrown:mlmodel:yolo-onnx`](https://github.com/HipsterBrown/viam-yolo-onnx) module, as in the codelab above.
+
+`export_format=viam` supports YOLOv8 and YOLO11 base models. End-to-end models such as YOLOv10 and YOLO26 run non-maximum suppression inside the model, and the script stops with an error before exporting them; use `export_format=ultralytics` for those.
+
 You can find your organization ID when viewing your organization settings and invites.
 The dataset ID can be copied from the `...` menu on your dataset overview page.
 
@@ -39,6 +62,12 @@ After [installing uv](https://docs.astral.sh/uv/#installation), sync the project
 
 ```
 make install
+```
+
+Run the tests, which export `yolov8n.pt` and check the ONNX model's inputs and outputs:
+
+```
+make test
 ```
 
 Build and publish a new version of the script:
